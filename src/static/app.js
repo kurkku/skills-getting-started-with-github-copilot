@@ -36,11 +36,16 @@ document.addEventListener("DOMContentLoaded", () => {
         // Build participants HTML
         let participantsHtml = "";
         if (Array.isArray(details.participants) && details.participants.length > 0) {
-          participantsHtml = "<ul>";
+          participantsHtml = '<div class="participants-list">';
           participantsHtml += details.participants
-            .map((p) => `<li>${escapeHtml(p)}</li>`)
+            .map((p) => `
+              <span class="participant-item">
+                ${escapeHtml(p)}
+                <span class="delete-icon" title="Remove participant" data-activity="${escapeHtml(name)}" data-email="${escapeHtml(p)}">&#128465;</span>
+              </span>
+            `)
             .join("");
-          participantsHtml += "</ul>";
+          participantsHtml += "</div>";
         } else {
           participantsHtml = '<p class="no-participants">No participants yet</p>';
         }
@@ -49,12 +54,8 @@ document.addEventListener("DOMContentLoaded", () => {
           <h4>${escapeHtml(name)}</h4>
           <p>${escapeHtml(details.description)}</p>
           <p><strong>Schedule:</strong> ${escapeHtml(details.schedule)}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
-
-          <div class="participants">
-            <h5>Participants</h5>
-            ${participantsHtml}
-          </div>
+          <p><strong>Spots left:</strong> ${spotsLeft}</p>
+          <div><strong>Participants:</strong> ${participantsHtml}</div>
         `;
 
         activitiesList.appendChild(activityCard);
@@ -64,6 +65,29 @@ document.addEventListener("DOMContentLoaded", () => {
         option.value = name;
         option.textContent = name;
         activitySelect.appendChild(option);
+      });
+
+      // Add event listeners for delete icons
+      document.querySelectorAll('.delete-icon').forEach(icon => {
+        icon.addEventListener('click', async (e) => {
+          const activity = icon.getAttribute('data-activity');
+          const email = icon.getAttribute('data-email');
+          if (confirm(`Remove ${email} from ${activity}?`)) {
+            try {
+              const res = await fetch(`/activities/${encodeURIComponent(activity)}/participants/${encodeURIComponent(email)}`, {
+                method: 'DELETE'
+              });
+              if (res.ok) {
+                fetchActivities();
+              } else {
+                const err = await res.json();
+                alert(err.detail || 'Failed to remove participant.');
+              }
+            } catch (err) {
+              alert('Error removing participant.');
+            }
+          }
+        });
       });
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
@@ -92,6 +116,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // Refresh activities so the new participant appears immediately
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
